@@ -194,92 +194,14 @@
 </ul>
 <p>LAMP架构是web安全中最基础的模块，熟悉掌握该架构有助于形成一个完整的web观念，能更好的分析web存在的安全隐患</p>
 <h2 id="一、架构分析"><a href="#一、架构分析" class="headerlink" title="一、架构分析"></a>一、架构分析</h2><p>准确认识每一个web组件的定位与提供的功能，每个组件之间的通信方式</p>
-<h3 id="1、组件"><a href="#1、组件" class="headerlink" title="1、组件"></a>1、组件</h3><ul>
-<li><p>web服务器Apache httpd</p>
-<blockquote>
-<p>The Apache HTTP Server Project is an effort to develop and maintain an open-source HTTP server for modern operating systems including UNIX and Windows. The goal of this project is to provide a secure, efficient and extensible server that provides HTTP services in sync with the current HTTP standards.</p>
-</blockquote>
-<p>Apache httpd 提供HTTP服务</p>
-</li>
-<li><p>数据库Mysql</p>
-</li>
-<li><p>开发语言PHP</p>
-</li>
-</ul>
-<h3 id="2、连接方式"><a href="#2、连接方式" class="headerlink" title="2、连接方式"></a>2、连接方式</h3><h4 id="1-Apache连接PHP方式"><a href="#1-Apache连接PHP方式" class="headerlink" title="(1)Apache连接PHP方式"></a>(1)Apache连接PHP方式</h4><ul>
-<li>CGI/FastCGI</li>
-<li>Apache2 Handler</li>
-<li>ISAPI（IIs连接PHP）</li>
-</ul>
-<h4 id="2-PHP连接MySQL"><a href="#2-PHP连接MySQL" class="headerlink" title="(2)PHP连接MySQL"></a>(2)PHP连接MySQL</h4><p>此处涉及安全性问题，PHP 5 及以上版本建议使用以下方式连接 MySQL :</p>
-<ul>
-<li>MySQLi extension(“i” 意为 improved)</li>
-<li>PDO (PHP Data Objects)</li>
-</ul>
-<h2 id="二、组件安全性分析"><a href="#二、组件安全性分析" class="headerlink" title="二、组件安全性分析"></a>二、组件安全性分析</h2><h3 id="1、httpd安全"><a href="#1、httpd安全" class="headerlink" title="1、httpd安全"></a>1、httpd安全</h3><p>此处内容参考Apache httpd官方文档，机翻结合个人翻译，水平有限。</p>
-<p><strong>(1)不断更新，关注组件安全</strong></p>
-<p><strong>(2)拒绝服务 (DoS) 攻击</strong>（未完全掌握）</p>
-<p>所有网络服务器都可能遭受拒绝服务攻击，这些攻击试图通过占用服务器资源来阻止对客户端的响应。不可能完全阻止此类攻击，可以采取某些措施来减轻它们造成的问题。</p>
-<p>通常最有效的反 DoS 工具是防火墙或其他操作系统配置。例如，大多数防火墙都可以配置为限制来自任何单个 IP 地址或网络的同时连接数，从而防止一系列简单攻击。当然，这对抵御分布式拒绝服务攻击 (DDoS) 没有帮助。</p>
-<p>某些 Apache HTTP Server 配置设置可以帮助缓解问题：</p>
-<ul>
-<li><code>RequestReadTimeout</code>该指令允许限制客户端发送请求所需的时间。</li>
-<li><code>TimeOut</code>应该在遭受 DoS 攻击的站点上降低该指令。将其设置为低至几秒钟可能是合适的。由于<code>TimeOut</code>当前用于几种不同的操作，将其设置为较低的值会导致长时间运行的 CGI 脚本出现问题。</li>
-<li><code>KeepAliveTimeout</code> 在遭受 DoS 攻击的站点上，该指令也可能会降低。一些站点甚至通过 完全关闭keepalive <code>KeepAlive</code>，这当然对性能有其他缺点。</li>
-<li>应检查其他模块提供的各种与超时相关的指令的值。</li>
-<li>指令 <code>LimitRequestBody</code>、 <code>LimitRequestFields</code>、 <code>LimitRequestFieldSize</code>、 <code>LimitRequestLine</code>和 <code>LimitXMLRequestBody</code> 应该仔细配置以限制由客户端输入触发的资源消耗。</li>
-<li>在支持它的操作系统上，请确保使用该<code>AcceptFilter</code>指令将部分请求处理卸载到操作系统。这在 Apache httpd 中默认处于活动状态，但可能需要重新配置内核。</li>
-<li>调整<code>MaxRequestWorkers</code>指令以允许服务器处理最大数量的同时连接而不会耗尽资源。另请参阅<a target="_blank" rel="noopener" href="https://httpd.apache.org/docs/2.4/misc/perf-tuning.html">性能调整文档</a>。</li>
-<li>使用线程<a target="_blank" rel="noopener" href="https://httpd.apache.org/docs/2.4/mpm.html">mpm</a>可以让您处理更多的并发连接，从而减轻 DoS 攻击。此外， <code>event</code>mpm 使用异步处理来避免为每个连接分配一个线程。由于 OpenSSL 库的性质， <code>event</code>mpm 目前与<code>mod_ssl</code>其他输入过滤器不兼容 。在这些情况下，它会退回到<code>worker</code>mpm的行为 。</li>
-<li>有许多可用的第三方模块可以限制某些客户端行为，从而缓解 DoS 问题。</li>
-</ul>
-<p><strong>(3)ServerRoot 目录的权限</strong></p>
-<p>在典型的操作中，Apache 由 root 用户启动，并切换到<code>User</code>指令定义的用户来提供<em>命中</em>。与 root 执行的任何命令一样，必须注意防止非 root 用户对其进行修改。不仅文件本身必须只能由 root 写入，而且目录和所有目录的父目录也必须如此。例如，如果将 ServerRoot 放在 <code>/usr/local/apache</code>其中，则建议以 root 身份创建该目录，使用如下命令：</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">mkdir /usr/local/apache</span><br><span class="line">cd /usr/local/apache</span><br><span class="line">mkdir bin conf logs</span><br><span class="line">chown 0 . bin conf logs</span><br><span class="line">chgrp 0 . bin conf logs</span><br><span class="line">chmod 755 . bin conf logs</span><br></pre></td></tr></table></figure>
-
-<p>假设<code>/</code>，<code>/usr</code>以及 <code>/usr/local</code>只为root修改。安装 <code>httpd</code>可执行文件时，应确保它受到类似的保护：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">cp httpd /usr/local/apache/bin</span><br><span class="line">chown 0 /usr/local/apache/bin/httpd</span><br><span class="line">chgrp 0 /usr/local/apache/bin/httpd</span><br><span class="line">chmod 511 /usr/local/apache/bin/httpd</span><br></pre></td></tr></table></figure>
-
-<p>可以创建一个可由其他用户修改的 htdocs 子目录——因为 root 永远不会在那里执行任何文件，也不应该在那里创建文件。</p>
-<p>如果允许非 root 用户修改 root 执行或写入的任何文件，那么系统将被入侵。例如，有人可以替换<code>httpd</code>二进制文件，以便下次启动它时，它会执行一些任意代码。如果日志目录是可写的（由非 root 用户），有人可以用指向其他系统文件的符号链接替换日志文件，然后 root 可能会用任意数据覆盖该文件。如果日志文件本身是可写的（由非 root 用户），那么有人可能能够用虚假数据覆盖日志本身。</p>
-<p><strong>(4)SSI</strong></p>
-<p>（由于不常见，待续）</p>
-<p><strong>(5)CGI安全</strong></p>
-<p>以我目前经验来看，开发者应该不会使用未经验证来源的GCI</p>
-<p><a target="_blank" rel="noopener" href="https://www.xp.cn/b.php/6862.html">CGI安全：从Web服务器配置入手</a></p>
-<p><strong>(6)Dynamic content security 动态内容安全</strong></p>
-<p>通过启用<a target="_blank" rel="noopener" href="https://github.com/SpiderLabs/ModSecurity">modsecurity</a>模块，可以有效加强安全性</p>
-<p><strong>(7).htaccess 系统安全设置</strong></p>
-<p><code>.htaccess</code>如果有权访问 httpd 主服务器配置文件，则应完全避免使用文件。使用<code>.htaccess</code>文件会降低 Apache http 服务器的速度。在<code>.htaccess</code>文件中包含的任何指令最好在<code>Directory</code>块中设置，因为它具有相同的效果和更好的性能。</p>
-<p>如果想将<code>.htaccess</code>文件称为其他名称，可以使用该<code>AccessFileName</code>指令更改文件的名称。</p>
-<p>一般来说，应该只在无权访问主服务器配置文件时才使用.htaccess文件。</p>
-<p>可以通过AllowOverride设置彻底禁止使用.htaccess文件</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">AllowOverride None</span><br></pre></td></tr></table></figure>
-
-<p><strong>(8)目录访问保护</strong></p>
-<p>正确的设置参数可以有效防止客户端遍历服务器目录</p>
-<p>例如:</p>
-<p>禁止访问根目录</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">&lt;Directory &quot;/&quot;&gt;</span><br><span class="line">    Require all denied</span><br><span class="line">&lt;/Directory&gt;</span><br></pre></td></tr></table></figure>
-
-<p>在directory内添加合适的目录，保持权限最小化，仅允许访问希望被访问的目录</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">&lt;Directory &quot;/usr/users/*/public_html&quot;&gt;</span><br><span class="line">    Require all granted</span><br><span class="line">&lt;/Directory&gt;</span><br><span class="line">&lt;Directory &quot;/usr/local/httpd&quot;&gt;</span><br><span class="line">    Require all granted</span><br><span class="line">&lt;/Directory&gt;</span><br></pre></td></tr></table></figure>
-
-<p><strong>(9)查询apache日志</strong></p>
-<p>通过查询日志，可以查看访问记录或攻击记录，定期检查可以有效提升服务器安全。</p>
-<h3 id="2、PHP安全"><a href="#2、PHP安全" class="headerlink" title="2、PHP安全"></a>2、PHP安全</h3><p>这里就不赘述了，参考官方文档</p>
-<p><strong>(1)以CGI模块安装时的安全问题</strong></p>
-<p><strong>(2)以Apache模块安装时的安全问题</strong></p>
-<p><strong>(3)会话安全</strong></p>
-<p><strong>(4)数据库安全</strong></p>
-<p>参考资料：<a target="_blank" rel="noopener" href="https://www.php.net/manual/zh/security.php">PHP官方文档</a></p>
-<h3 id="3、MySQL安全"><a href="#3、MySQL安全" class="headerlink" title="3、MySQL安全"></a>3、MySQL安全</h3><p>参考资料：<a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/5.6/en/security.html">MySQL官方文档</a></p>
-<h2 id="三、总结"><a href="#三、总结" class="headerlink" title="三、总结"></a>三、总结</h2><p>之所以写下这篇文章，是因为在学习的过程中，清楚的认识到一句话：知己知彼，百战不殆。我认为，WEB安全中最重要的有两个方面（排除社工手段）：</p>
-<p>1、数据流 </p>
-<p>2、安全配置</p>
-<p>如果不了解整个架构，不熟悉每个组件之间的连接，就无法清楚的认识到数据的流向，而数据的流向正是渗透的关键，与此同时，各个组件的安全也影响到整个服务器的安全，根据木桶效应，安全永远取决于最薄弱的一环，哪怕重重加固，只要某一环的安全配置除了问题，就有机会打穿服务器。</p>
-<p><strong>心得</strong>：学习安全配置的过程中，最优秀的资料便是源码以及官方文档，尽管全英文的文档可能存在一定的阅读障碍，依然十分推荐以文档作为学习资料。</p>
-
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2021/06/06/securityofLAMP/#more" rel="contents">
+                Read more &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
       
     </div>
 
